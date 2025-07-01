@@ -52,6 +52,7 @@ Update the following in the code before uploading:
 ```cpp
 const char* ssid = "YOUR_SSID";
 const char* password = "YOUR_PASSWORD";
+```
 
 ---
 
