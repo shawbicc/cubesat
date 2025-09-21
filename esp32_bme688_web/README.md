@@ -60,7 +60,7 @@ const char* password = "YOUR_PASSWORD";
 
 - Open the project in Arduino IDE.
 
-- Select your board: ESP32S3 Dev Module.
+- Select your board: ESP32S3 Dev Module. (or Nologo ESP32C3 Super mini)
 
 - Select the correct COM port.
 

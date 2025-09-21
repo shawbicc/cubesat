@@ -4,9 +4,7 @@
 #include <Adafruit_BME680.h>
 #include <WebServer.h>
 
-// const char* ssid = "STL";
-// const char* password = "bangladesh";
-
+// WiFi credentials
 const char* ssid = "Sabik";
 const char* password = "sabik2409";
 
@@ -51,11 +49,24 @@ void handleRoot() {
       <canvas id="humidityChart"></canvas>
     </div>
   </div>
+  <div class="text-center mt-3">
+    <button id="downloadBtn" class="btn btn-primary">Download CSV</button>
+  </div>
 </div>
 
 <script>
-  const MAX_POINTS = 20;  // number of data points shown on graph
-  const ESP32_URL = "/data";  // replace <ESP32-IP> with your ESP32 address
+  const MAX_POINTS = 20;       // number of data points shown on graph
+  const MAX_STORAGE = 100000;  // max stored rows
+  const TRIM_BATCH = 100;      // delete this many when limit exceeded
+  const TRIM_INTERVAL = 10;    // check trimming every 10 new points
+  let newCount = 0;
+
+  const ESP32_URL = "/data";
+
+  // Initialize storage if empty
+  if (!localStorage.getItem("sensorData")) {
+    localStorage.setItem("sensorData", JSON.stringify([]));
+  }
 
   const createChart = (ctx, label, borderColor, bgColor, yMin, yMax, yLabel) => {
     return new Chart(ctx, {
@@ -68,7 +79,7 @@ void handleRoot() {
           borderColor: borderColor,
           backgroundColor: bgColor,
           fill: true,
-          tension: 0.4, // smooth line
+          tension: 0.4,
           pointRadius: 3,
           pointHoverRadius: 5
         }]
@@ -100,7 +111,7 @@ void handleRoot() {
   };
 
   const tempChart = createChart(document.getElementById('tempChart'), 'Temperature (°C)', 'red', 'rgba(255,0,0,0.1)', 0, 100, '°C');
-  const pressureChart = createChart(document.getElementById('pressureChart'), 'Pressure (hPa)', 'blue', 'rgba(0,0,255,0.1)', 900, 1100, 'kPa');
+  const pressureChart = createChart(document.getElementById('pressureChart'), 'Pressure (hPa)', 'blue', 'rgba(0,0,255,0.1)', 900, 1100, 'hPa');
   const humidityChart = createChart(document.getElementById('humidityChart'), 'Humidity (%)', 'green', 'rgba(0,128,0,0.1)', 0, 100, '%RH');
 
   function updateChart(chart, value) {
@@ -114,19 +125,56 @@ void handleRoot() {
     chart.update();
   }
 
+  function storeData(timestamp, temp, pres, hum) {
+    let dataArr = JSON.parse(localStorage.getItem("sensorData"));
+    dataArr.push({time: timestamp, t: temp, p: pres, h: hum});
+    newCount++;
+
+    if (dataArr.length > MAX_STORAGE && newCount >= TRIM_INTERVAL) {
+      dataArr.splice(0, TRIM_BATCH); // remove oldest entries
+      newCount = 0;
+    }
+
+    localStorage.setItem("sensorData", JSON.stringify(dataArr));
+  }
+
   async function fetchData() {
     try {
       const response = await fetch(ESP32_URL);
       const data = await response.json();
+
+      const now = new Date();
+      const timestamp = Math.floor(Date.now() / 1000); // UNIX timestamp (seconds)
+
+
       updateChart(tempChart, data.temperature);
       updateChart(pressureChart, data.pressure);
       updateChart(humidityChart, data.humidity);
+
+      storeData(timestamp, data.temperature, data.pressure, data.humidity);
     } catch (err) {
       console.error("Failed to fetch ESP32 data:", err);
     }
   }
 
-  // Fetch data every 0.5 seconds
+  // Download CSV button
+  document.getElementById("downloadBtn").addEventListener("click", () => {
+    let dataArr = JSON.parse(localStorage.getItem("sensorData"));
+    let csv = "Date Time,Temperature,Pressure,Humidity\\n";
+    dataArr.forEach(row => {
+      csv += row.time + " " + row.t + " " + row.p + " " + row.h + "\\n";
+    });
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.setAttribute("href", url);
+    a.setAttribute("download", "sensors.csv");
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  });
+
+  // Fetch data every 1 second
   setInterval(fetchData, 1000);
 </script>
 
@@ -147,8 +195,7 @@ void handleData() {
 
 void setup() {
   Serial.begin(115200);
-  // Wire.begin(8, 9); // Changed SDA and SCL to GPIO 8 and 9
-  Wire.begin(5, 4); // Changed SDA and SCL to GPIO 8 and 9
+  Wire.begin(5, 4); // SDA = GPIO5, SCL = GPIO4
 
   if (!bme.begin(0x77)) {
     Serial.println("BME688 not found");
@@ -177,13 +224,11 @@ void setup() {
 }
 
 void loop() {
-  // Read sensor
   if (bme.performReading()) {
     temperature = bme.temperature;
-    pressure = bme.pressure / 100.0;
+    pressure = bme.pressure / 100.0; // hPa
     humidity = bme.humidity;
   }
-
   server.handleClient();
   delay(1000);
 }
