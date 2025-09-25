@@ -1,13 +1,21 @@
 #include <WiFi.h>
 #include <Adafruit_BME680.h>
+#include <Adafruit_Sensor.h>
+#include <Wire.h>
 #include <time.h>
 
 // WiFi credentials
-const char* ssid     = "Spothot";
-const char* password = "hush1234";
+// const char* ssid     = "Spothot";
+// const char* password = "hush1234";
+
+// WiFi credentials
+const char* ssid     = "AMD Old";
+const char* password = "norton2010";
+
 
 // Server details
-const char* host = "192.168.43.100";   // Change to your server IP
+// const char* host = "192.168.43.100";   // Change to your server IP
+const char* host = "192.168.0.113";
 const uint16_t port = 5000;
 
 // NTP server details
@@ -22,6 +30,8 @@ WiFiClient client;
 
 void setup() {
   Serial.begin(115200);
+
+  Wire.begin(5, 4);
 
   // Connect WiFi
   Serial.printf("Connecting to %s ", ssid);
